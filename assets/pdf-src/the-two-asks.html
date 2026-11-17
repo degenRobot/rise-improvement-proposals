@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Two asks of RISEx</title>
+<link rel="stylesheet" href="print.css">
+</head>
+<body class="onepage">
+
+<header class="cover">
+  <div class="kicker">RISE Improvement Proposals · Summary</div>
+  <h1>Two asks of RISEx</h1>
+  <p class="sub">Let contract accounts sign for themselves, and publish how a contract earns the order role</p>
+  <div class="meta"><a href="https://x.com/degenRobot">@degenRobot</a> · <a href="https://mattsmart.xyz">mattsmart.xyz</a> · November 2026 · Drafts RIP&#8209;3 and RIP&#8209;4</div>
+</header>
+
+<p class="lead">A contract account can hold collateral on RISEx and validate signatures on chain. It cannot trade under its own rules through the hosted API, and it cannot trade in the same transaction as its own logic. Each fix is small for RISE: one is in the API, the other is a process.</p>
+
+<figure>
+<svg viewBox="0 30 700 236" style="width:84%;margin:0 auto" role="img" aria-label="The API refuses contract signatures today; RIP-3 relays them; RIP-4 lets a contract trade on chain directly" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker>
+  </defs>
+  <!-- row labels -->
+  <text x="16" y="56" font-size="13" font-weight="600" fill="#17191c">Today</text>
+  <text x="16" y="72" font-size="10.5" fill="#5a6068">hosted API</text>
+  <text x="16" y="136" font-size="13" font-weight="600" fill="#0f6e66">RIP-3</text>
+  <text x="16" y="152" font-size="10.5" fill="#5a6068">API relays ERC-1271</text>
+  <text x="16" y="216" font-size="13" font-weight="600" fill="#0f6e66">RIP-4</text>
+  <text x="16" y="232" font-size="10.5" fill="#5a6068">order role, on chain</text>
+  <!-- row 1 -->
+  <rect x="176" y="40" width="136" height="40" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="244" y="64" text-anchor="middle" font-size="12.5" fill="#17191c">Contract account</text>
+  <path d="M312 60 H350" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#b1)"/>
+  <rect x="352" y="40" width="136" height="40" rx="8" fill="#fff" stroke="#a3242a" stroke-width="2"/>
+  <text x="420" y="64" text-anchor="middle" font-size="12.5" fill="#17191c">Hosted API</text>
+  <text x="420" y="96" text-anchor="middle" font-size="10.5" fill="#a3242a">refused: 64 or 65 bytes only</text>
+  <rect x="528" y="40" width="150" height="40" rx="8" fill="none" stroke="#d9dde2" stroke-dasharray="4 3"/>
+  <text x="603" y="64" text-anchor="middle" font-size="12.5" fill="#9aa0a6">RISEx router</text>
+  <!-- row 2 -->
+  <rect x="176" y="120" width="136" height="40" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="244" y="144" text-anchor="middle" font-size="12.5" fill="#17191c">Contract account</text>
+  <path d="M312 140 H350" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#b1)"/>
+  <rect x="352" y="120" width="136" height="40" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="420" y="144" text-anchor="middle" font-size="12.5" fill="#17191c">Hosted API</text>
+  <text x="420" y="176" text-anchor="middle" font-size="10.5" fill="#5a6068">pre-checks isValidSignature</text>
+  <path d="M488 140 H526" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#b1)"/>
+  <rect x="528" y="120" width="150" height="40" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="603" y="144" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">RISEx router</text>
+  <text x="603" y="176" text-anchor="middle" font-size="10.5" fill="#5a6068">checks again; order placed</text>
+  <!-- row 3 -->
+  <rect x="176" y="200" width="136" height="40" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="244" y="224" text-anchor="middle" font-size="12.5" fill="#17191c">Contract, role 14</text>
+  <path d="M312 220 H526" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#b1)"/>
+  <text x="420" y="212" text-anchor="middle" font-size="10.5" fill="#5a6068">order and state change in one transaction</text>
+  <rect x="528" y="200" width="150" height="40" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="603" y="224" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">RISEx router</text>
+  <text x="603" y="256" text-anchor="middle" font-size="10.5" fill="#5a6068">or PerpsManager directly</text>
+</svg>
+</figure>
+
+<div class="cols">
+  <div>
+    <h3>RIP&#8209;3 · Contract signatures on the hosted API</h3>
+    <dl>
+      <dt>The ask</dt><dd>Accept a permit whose signer is a contract and whose signature is longer than 65 bytes. Pre-check the account's <code>isValidSignature</code>, then relay through the router's existing ERC-1271 path.</dd>
+      <dt>What changes for RISE</dt><dd>The API only. The router already decodes these permits.</dd>
+      <dt>What it opens</dt><dd>Passkey wallets, RISE Wallet included. Safe treasuries. Agent wallets with limits. Lending where an order that breaks the loan is an invalid signature. Stop-losses anyone can relay.</dd>
+      <dt>Main risk, and its bound</dt><dd>The API runs code that accounts wrote. A gas cap on the check, per-address quotas, and a throttle on accounts whose permits fail on chain.</dd>
+      <dt>Evidence</dt><dd>On 13 November 2026 the API refused a 388-byte signature that the account itself accepted. Of 2,715 recently active accounts sampled, none is a contract.</dd>
+    </dl>
+  </div>
+  <div>
+    <h3>RIP&#8209;4 · A process for the order role</h3>
+    <dl>
+      <dt>The ask</dt><dd>Publish how a contract applies for AccessManager role 14, the tiers from testnet to mainnet, and when the role is revoked.</dd>
+      <dt>What changes for RISE</dt><dd>No code. A registry page, and grants made with zero execution delay.</dd>
+      <dt>What it opens</dt><dd>The synthetic book. Order hooks. Liquidating a credit or portfolio-margin account in one transaction, which RISE's own RIP&#8209;2 describes.</dd>
+      <dt>Main risk, and its bound</dt><dd>A holder skips the API's limits and may pool client funds in one account. Notional and rate caps, an audit, timelocked upgrades, and revocation that takes effect at once.</dd>
+      <dt>Evidence</dt><dd>RISE granted the role to three experimental contracts on testnet on 13 November 2026. Every path that had been waiting ran live the same day.</dd>
+    </dl>
+  </div>
+</div>
+
+<h2>What RISE gets</h2>
+<div class="callouts">
+  <div class="callout"><b>Accounts that cannot trade today</b>Multisig treasuries, passkey wallets and lending protocols have no path through the API until RIP&#8209;3.</div>
+  <div class="callout"><b>Flow it does not have to build</b>The synthetic book rests a post-only order at the mid and sends closes and liquidations to RISEx's book, under a builder code. RISEx gets the book's net flow, not its gross.</div>
+  <div class="callout"><b>Risk that stays outside its engine</b>On a fork, traders at 94× showed to RISEx as one account at 3.95×. A 3% gap cost the book's pool 8% and left RISEx's liquidator nothing to do.</div>
+</div>
+
+<footer class="sources">
+Full text: RIPs/rip-3.md and RIPs/rip-4.md in this repository, with worked examples under examples/. Figures are from RISE testnet (13–14 November 2026) and from forks of RISE testnet and mainnet (17 November 2026). Text released under CC0 1.0.
+</footer>
+</body>
+</html>

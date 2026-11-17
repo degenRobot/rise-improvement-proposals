@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Synthetic book</title>
+<link rel="stylesheet" href="print.css">
+</head>
+<body>
+
+<header class="cover">
+  <div class="kicker">RISE Improvement Proposals · Example · Needs RIP-4</div>
+  <h1>Synthetic book</h1>
+  <p class="sub">A Papertrade-style perps book where every position is backed by another trader or by a real order on RISEx</p>
+  <div class="meta"><a href="https://x.com/degenRobot">@degenRobot</a> · <a href="https://mattsmart.xyz">mattsmart.xyz</a> · November 2026 · An experiment on RISE testnet, live since 13 November 2026</div>
+</header>
+
+<p class="lead">Traders get the simplicity of a synthetic perps app: one pool, one price, no order book to read. Behind it, traders are matched with each other at the RISEx mid, and whoever is left waits behind a single resting order on RISEx. The pool never takes a side, so liquidity providers hold no directional exposure. The book can offer more leverage than RISEx does, and the risk of it stays in the book's pool, not in RISEx's risk engine.</p>
+
+<div class="callouts two">
+  <div class="callout"><b>No LP directional risk</b>The book's net position always equals its RISEx position. Measured on a fork: a 2% move changed pool value by under 0.05 USDC.</div>
+  <div class="callout"><b>Leverage risk stays in the book</b>On a fork, traders ran at 94× while RISEx margined the book's one account at 4×. A 3% gap cost the pool 8% and left RISEx's liquidator nothing to do.</div>
+  <div class="callout"><b>Real liquidity, not a quote</b>The unmatched side rests on RISEx as one post-only order sized to the queue, so venue liquidity fills it and RISEx gets the book's net flow.</div>
+  <div class="callout"><b>One atomic transaction</b>Settle fills, match, queue and re-place the RISEx order together. That is why it needs the order role (RIP&#8209;4).</div>
+</div>
+
+<h2>How a trade flows</h2>
+<figure>
+<svg viewBox="0 0 700 372" role="img" aria-label="Five steps in one transaction: settle, check, match, queue, replace the resting order" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker>
+    <marker id="a1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0f6e66"/></marker>
+  </defs>
+  <rect x="16" y="150" width="150" height="60" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="91" y="175" text-anchor="middle" font-size="13" font-weight="600" fill="#17191c">Trader opens</text>
+  <text x="91" y="193" text-anchor="middle" font-size="12" fill="#5a6068">long 1.0 ETH</text>
+  <rect x="196" y="12" width="290" height="352" rx="10" fill="#f3f5f7" stroke="#17191c" stroke-width="1.25"/>
+  <text x="212" y="34" font-size="12" font-weight="600" fill="#17191c">Queue book contract · one transaction</text>
+  <rect x="214" y="46" width="254" height="46" rx="8" fill="#fff" stroke="#5a6068"/>
+  <text x="228" y="65" font-size="12.5" font-weight="600" fill="#17191c">1  Settle what RISEx filled</text>
+  <text x="244" y="82" font-size="10.8" fill="#5a6068">to the queue head, at the resting order's price</text>
+  <rect x="214" y="104" width="254" height="46" rx="8" fill="#fff" stroke="#5a6068"/>
+  <text x="228" y="123" font-size="12.5" font-weight="600" fill="#17191c">2  Check the trade is allowed</text>
+  <text x="244" y="140" font-size="10.8" fill="#5a6068">size caps; mid inside a gate of the mark</text>
+  <rect x="214" y="162" width="254" height="46" rx="8" fill="#fff" stroke="#5a6068"/>
+  <text x="228" y="181" font-size="12.5" font-weight="600" fill="#17191c">3  Match the waiting shorts (0.6 ETH)</text>
+  <text x="244" y="198" font-size="10.8" fill="#5a6068">both sides at the RISEx mid, no venue trade</text>
+  <rect x="214" y="220" width="254" height="46" rx="8" fill="#fff" stroke="#5a6068"/>
+  <text x="228" y="239" font-size="12.5" font-weight="600" fill="#17191c">4  Leftover 0.4 ETH joins the queue</text>
+  <text x="244" y="256" font-size="10.8" fill="#5a6068">no position until it is filled</text>
+  <rect x="214" y="278" width="254" height="46" rx="8" fill="#fff" stroke="#5a6068"/>
+  <text x="228" y="297" font-size="12.5" font-weight="600" fill="#17191c">5  Cancel and re-place the order</text>
+  <text x="244" y="314" font-size="10.8" fill="#5a6068">one post-only order, size = queue total</text>
+  <text x="214" y="350" font-size="11" fill="#0f6e66" font-weight="600">LP pool: no position. Book net = RISEx position.</text>
+  <rect x="520" y="240" width="164" height="88" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="602" y="266" text-anchor="middle" font-size="13" font-weight="600" fill="#17191c">RISEx order book</text>
+  <text x="602" y="286" text-anchor="middle" font-size="11.5" fill="#17191c">resting buy 0.4 ETH</text>
+  <text x="602" y="304" text-anchor="middle" font-size="11.5" fill="#17191c">at the mid, post-only</text>
+  <path d="M166 180 H188 V68 H212" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a1)"/>
+  <path d="M341 92 V102" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a1)"/>
+  <path d="M341 150 V160" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a1)"/>
+  <path d="M341 208 V218" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a1)"/>
+  <path d="M341 266 V276" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a1)"/>
+  <path d="M468 300 H518" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a1)"/>
+  <path d="M602 238 V68 H470" fill="none" stroke="#0f6e66" stroke-width="1.25" stroke-dasharray="4 3" marker-end="url(#a1g)"/>
+  <text x="610" y="140" font-size="11" fill="#0f6e66">fills since the</text>
+  <text x="610" y="155" font-size="11" fill="#0f6e66">last call, read</text>
+  <text x="610" y="170" font-size="11" fill="#0f6e66">from the position</text>
+</svg>
+<figcaption>A long arrives while 0.6 ETH of shorts wait. 0.6 matches at the mid inside the contract; 0.4 waits behind one resting order on RISEx. When RISEx fills that order, step 1 of the next call hands the fill to the front of the queue.</figcaption>
+</figure>
+
+
+<h2>Where the leverage risk sits</h2>
+<p>The book's leverage limit is its own setting. RISEx never sees a trader's position, only the book's account, which holds the whole pool and every trader's margin against the book's net position. So a trader can be at 100× while the account RISEx margins is at a few times.</p>
+
+<figure>
+<svg viewBox="0 0 700 186" role="img" aria-label="Four traders at 94 times inside the book appear to RISEx as one account at 3.95 times" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker>
+  </defs>
+  <text x="16" y="22" font-size="13" font-weight="600" fill="#17191c">Inside the book: four traders</text>
+  <text x="496" y="22" font-size="13" font-weight="600" fill="#17191c">What RISEx sees</text>
+  <rect x="16" y="36" width="96" height="96" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="64" y="58" text-anchor="middle" font-size="12" fill="#17191c">5 ETH long</text>
+  <text x="64" y="88" text-anchor="middle" font-size="22" font-weight="600" fill="#a8540a">94×</text>
+  <text x="64" y="112" text-anchor="middle" font-size="11" fill="#5a6068">110 USD margin</text>
+  <rect x="120" y="36" width="96" height="96" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="168" y="58" text-anchor="middle" font-size="12" fill="#17191c">5 ETH long</text>
+  <text x="168" y="88" text-anchor="middle" font-size="22" font-weight="600" fill="#a8540a">94×</text>
+  <text x="168" y="112" text-anchor="middle" font-size="11" fill="#5a6068">110 USD margin</text>
+  <rect x="224" y="36" width="96" height="96" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="272" y="58" text-anchor="middle" font-size="12" fill="#17191c">5 ETH long</text>
+  <text x="272" y="88" text-anchor="middle" font-size="22" font-weight="600" fill="#a8540a">94×</text>
+  <text x="272" y="112" text-anchor="middle" font-size="11" fill="#5a6068">110 USD margin</text>
+  <rect x="328" y="36" width="96" height="96" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="376" y="58" text-anchor="middle" font-size="12" fill="#17191c">5 ETH long</text>
+  <text x="376" y="88" text-anchor="middle" font-size="22" font-weight="600" fill="#a8540a">94×</text>
+  <text x="376" y="112" text-anchor="middle" font-size="11" fill="#5a6068">110 USD margin</text>
+  <text x="16" y="146" font-size="11" fill="#5a6068">Pool: 10,000 USDC from LPs. RISEx's own limit for this market: 50×.</text>
+  <path d="M428 84 H492" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a3)"/>
+  <text x="460" y="74" text-anchor="middle" font-size="11" fill="#5a6068">net 20 ETH</text>
+  <rect x="496" y="36" width="188" height="96" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="590" y="55" text-anchor="middle" font-size="12" fill="#17191c">one account, 20 ETH long</text>
+  <text x="590" y="82" text-anchor="middle" font-size="22" font-weight="600" fill="#0f6e66">3.95×</text>
+  <text x="590" y="102" text-anchor="middle" font-size="11" fill="#17191c">equity 10,442 USD</text>
+  <text x="590" y="118" text-anchor="middle" font-size="11" fill="#17191c">19× its maintenance margin</text>
+  <text x="496" y="146" font-size="11" fill="#5a6068">Margined like any other account.</text>
+  <text x="16" y="174" font-size="10.5" fill="#5a6068">Fork of RISE testnet, block 59,313,000, ETH mark 2,064.87. Book limit 100×, maintenance 0.5%, gate 40 bp.</text>
+</svg>
+</figure>
+
+<p>Then the price gapped down 3% before any liquidation ran. Every trader was bankrupt, having lost about 310 USD against 110 of margin. This is where the loss went:</p>
+
+<figure>
+<svg viewBox="0 0 700 178" role="img" aria-label="Losses fall on trader margin, then the book's pool, and reach RISEx's risk engine only after both" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker>
+  </defs>
+  <text x="16" y="18" font-size="12" font-weight="600" fill="#0f6e66">Inside the book</text>
+  <path d="M16 26 H342" stroke="#0f6e66" stroke-width="2"/>
+  <text x="368" y="18" font-size="12" font-weight="600" fill="#5a6068">RISEx's risk engine, unchanged</text>
+  <path d="M368 26 H694" stroke="#5a6068" stroke-width="2" stroke-dasharray="5 3"/>
+  <rect x="16" y="40" width="150" height="62" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="91" y="64" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">1  Trader's margin</text>
+  <text x="91" y="84" text-anchor="middle" font-size="11" fill="#5a6068">110 USD each</text>
+  <rect x="192" y="40" width="150" height="62" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="267" y="64" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">2  The book's pool</text>
+  <text x="267" y="84" text-anchor="middle" font-size="11" fill="#17191c">10,000 USDC from LPs</text>
+  <rect x="368" y="40" width="150" height="62" rx="8" fill="#fff" stroke="#5a6068" stroke-dasharray="4 3"/>
+  <text x="443" y="64" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">3  RISEx margin check</text>
+  <text x="443" y="84" text-anchor="middle" font-size="11" fill="#5a6068">on the book's account</text>
+  <rect x="544" y="40" width="150" height="62" rx="8" fill="#fff" stroke="#5a6068" stroke-dasharray="4 3"/>
+  <text x="619" y="64" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">4  RISEx liquidator</text>
+  <text x="619" y="84" text-anchor="middle" font-size="11" fill="#5a6068">and reserve vault</text>
+  <path d="M166 71 H190" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a4)"/>
+  <path d="M342 71 H366" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a4)"/>
+  <path d="M518 71 H542" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a4)"/>
+  <text x="91" y="122" text-anchor="middle" font-size="10.8" fill="#17191c">all of it gone</text>
+  <text x="91" y="137" text-anchor="middle" font-size="10.8" fill="#5a6068">(a 1% move does it at 100×)</text>
+  <text x="267" y="122" text-anchor="middle" font-size="10.8" font-weight="600" fill="#0f6e66">paid 808 USDC</text>
+  <text x="267" y="137" text-anchor="middle" font-size="10.8" fill="#5a6068">8.1% of the pool</text>
+  <text x="443" y="122" text-anchor="middle" font-size="10.8" fill="#17191c">passed: equity 17×</text>
+  <text x="443" y="137" text-anchor="middle" font-size="10.8" fill="#5a6068">maintenance, 4.35× leverage</text>
+  <text x="619" y="122" text-anchor="middle" font-size="10.8" fill="#17191c">not reached</text>
+  <text x="619" y="137" text-anchor="middle" font-size="10.8" fill="#5a6068">needs about a 24% move</text>
+  <text x="619" y="152" text-anchor="middle" font-size="10.8" fill="#5a6068">with no liquidation in the book</text>
+</svg>
+<figcaption>After the gap, four liquidation calls sold the 20 ETH on RISEx and the book's RISEx position returned to zero. The 24% figure is arithmetic on the measured equity and maintenance margin, not a test.</figcaption>
+</figure>
+
+<p>In the orderly case the pool pays nothing. One trader at 94× with 22 USDC of margin was liquidated after an 80 bp move: the trader kept 2.97 USDC, the keeper earned 2.05, and pool value did not change.</p>
+
+<table class="keep plain">
+  <thead><tr><th style="width:19%">What this means for</th><th></th></tr></thead>
+  <tbody>
+    <tr><td><b>RISEx</b></td><td>A resting post-only order inside the spread, taker flow from market closes and liquidations, and the book's net position as open interest. Trades matched inside the book never reach RISEx: it gets net flow, not gross.</td></tr>
+    <tr><td><b>The book's LPs</b></td><td>The pool is the insurance fund. At 100×, any gap over 1% before a liquidation is the pool's loss.</td></tr>
+    <tr><td><b>The book's settings</b></td><td>The mid-to-mark gate must fit between initial and maintenance margin, or the contract refuses the settings: under 50 bp at 100× with 0.5% maintenance. Testnet ETH runs 1% at 20×. Testnet BTC, whose mid sits about 1% from the mark, could not run 100×.</td></tr>
+  </tbody>
+</table>
+
+<section class="keep">
+<h2>How it compares with Papertrade</h2>
+<p><a href="https://docs.papertrade.xyz/">Papertrade</a> on Hyperliquid made synthetic perps popular. Every trade there is a swap between the user and the LP, priced at Hyperliquid's mid, and the docs say no perpetual contracts are traded on Hyperliquid. The LP is every trader's counterparty and carries their net, unhedged.</p>
+
+<figure>
+<svg viewBox="0 0 700 244" role="img" aria-label="Papertrade's LP takes every trade; the queue book's pool takes none" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker>
+  </defs>
+  <line x1="350" y1="8" x2="350" y2="236" stroke="#d9dde2"/>
+  <!-- Papertrade -->
+  <text x="20" y="24" font-size="13" font-weight="600" fill="#17191c">Papertrade (Hyperliquid)</text>
+  <rect x="40" y="56" width="180" height="44" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="130" y="83" text-anchor="middle" font-size="13" fill="#17191c">Traders</text>
+  <rect x="40" y="150" width="180" height="44" rx="8" fill="#fbefe2" stroke="#a8540a" stroke-width="2"/>
+  <text x="130" y="177" text-anchor="middle" font-size="13" font-weight="600" fill="#17191c">LP pool</text>
+  <path d="M130 102 V148" fill="none" stroke="#5a6068" stroke-width="1.25" marker-start="url(#a2)" marker-end="url(#a2)"/>
+  <text x="122" y="129" text-anchor="end" font-size="11" fill="#5a6068">every trade</text>
+  <rect x="244" y="100" width="92" height="46" rx="8" fill="none" stroke="#5a6068" stroke-dasharray="4 3"/>
+  <text x="290" y="120" text-anchor="middle" font-size="12" fill="#17191c">Hyperliquid</text>
+  <text x="290" y="136" text-anchor="middle" font-size="10.5" fill="#5a6068">price only</text>
+  <path d="M244 123 H136" fill="none" stroke="#5a6068" stroke-dasharray="4 3"/>
+  <text x="20" y="214" font-size="11" fill="#a8540a">LP carries the traders' whole net, unhedged;</text>
+  <text x="20" y="229" font-size="11" fill="#a8540a">unpaid wins wait in a queue for later losses</text>
+  <!-- Queue book -->
+  <text x="370" y="24" font-size="13" font-weight="600" fill="#17191c">Synthetic queue book (RISE)</text>
+  <rect x="370" y="56" width="130" height="44" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="435" y="83" text-anchor="middle" font-size="13" fill="#17191c">Longs</text>
+  <rect x="552" y="56" width="130" height="44" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="617" y="83" text-anchor="middle" font-size="13" fill="#17191c">Shorts</text>
+  <path d="M502 78 H550" fill="none" stroke="#5a6068" stroke-width="1.25" marker-start="url(#a2)" marker-end="url(#a2)"/>
+  <text x="526" y="48" text-anchor="middle" font-size="11" fill="#5a6068">match at mid</text>
+  <rect x="440" y="150" width="172" height="44" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="526" y="177" text-anchor="middle" font-size="13" font-weight="600" fill="#17191c">RISEx order book</text>
+  <path d="M435 102 V124 H500 V148" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#a2)"/>
+  <text x="508" y="134" font-size="11" fill="#5a6068">remainder rests as one order</text>
+  <text x="370" y="214" font-size="11" fill="#0f6e66">Pool holds no position: book net always</text>
+  <text x="370" y="229" font-size="11" fill="#0f6e66">equals its RISEx position</text>
+</svg>
+<figcaption>Left, the pool is the counterparty and reads only a price from the venue. Right, traders face each other or RISEx's real book, and the pool stays flat.</figcaption>
+</figure>
+</section>
+
+<table class="keep">
+  <thead><tr><th style="width:22%"></th><th style="width:39%">Papertrade</th><th>Synthetic queue book</th></tr></thead>
+  <tbody>
+    <tr><td>Counterparty</td><td>The LP, on every trade</td><td>Another trader, or RISEx through the resting order</td></tr>
+    <tr><td>LP price exposure</td><td>All of the traders' net</td><td>No directional exposure. The pool pays only when a trader's loss passes their margin</td></tr>
+    <tr><td>Paying winners</td><td>When the LP cannot pay, unpaid profit waits in a FIFO queue, repaid from later losses</td><td>Each position has a real counterparty, so no profit queue is needed</td></tr>
+    <tr><td>Price</td><td>Hyperliquid mid, read by a precompile, with no deviation check</td><td>RISEx mid read on chain, refused outside a gate around the mark</td></tr>
+    <tr><td>Liquidation</td><td>A hard bust about 5 bp inside zero equity; the whole margin is forfeit</td><td>Waiting traders take what they can at mid; the rest is sold on RISEx or moved to the front of the queue</td></tr>
+    <tr><td>Cost to a winner</td><td>A $10,000 BTC long that wins 100 bp keeps $86.40 of $100: the impact haircut leaves about $88.16, then a 2% win fee</td><td>Queue matches pay no venue fee; resting fills earned the pool a maker rebate on testnet. Fee model not set (working assumption: 2% of profit)</td></tr>
+    <tr><td>Fill</td><td>Instant</td><td>Instant if the other side is waiting; otherwise when RISEx fills the resting order (seconds on testnet)</td></tr>
+  </tbody>
+</table>
+<p class="note">What the queue book gives up: a trader may wait for a fill, a liquidation can walk RISEx's book, and the design needs RISEx's order role.</p>
+
+<section class="keep">
+<h2>What the resting order becomes</h2>
+<p>Step 5 leaves one order on RISEx. Its side and size depend on who was waiting when the trade arrived:</p>
+
+<table class="keep">
+  <thead><tr><th>Queue before a long arrives</th><th>What happens</th><th>Resting order after</th></tr></thead>
+  <tbody>
+    <tr><td>Empty</td><td>The long joins the queue</td><td>Buy, the long's size</td></tr>
+    <tr><td>Shorts, larger than the long</td><td>The long matches the oldest shorts at the mid</td><td>Sell, reduced by the long's size</td></tr>
+    <tr><td>Shorts, smaller than the long</td><td>All shorts match; the rest starts a long queue</td><td>Buy, the leftover</td></tr>
+    <tr><td>Longs</td><td>The long joins the back</td><td>Buy, the new total, at the new mid</td></tr>
+  </tbody>
+</table>
+</section>
+
+<h2>Liquidation</h2>
+<p>Anyone may call either route once a trader is below maintenance.</p>
+<ul>
+  <li><code>liquidate(trader)</code>: waiting traders on the other side take what they can at mid; the rest is sold on RISEx in the same transaction. Fast, but a large position walks the book.</li>
+  <li><code>liquidateToQueue(trader)</code>: waiting traders take what they can; the rest goes to the front of the queue and leaves through the resting order or the next opposite trader, so nothing walks the book. <code>liquidate</code> can finish it at any time.</li>
+</ul>
+
+<h2>Why it needs RIP&#8209;4</h2>
+<p>The resting order on RISEx must always equal the queue. If the book settled, matched and queued in one transaction but sent the order through the hosted API in another, the two would drift apart between transactions, and the pool would carry the gap. Only a contract holding RISEx's order role can change both together. The book also routes orders for books in other markets: it presents a router permit whose signer is the other book, and that book's <code>isValidSignature</code> approves only the permit being presented for it at that moment.</p>
+
+<p>The five steps of a trade, simplified from the testnet contract:</p>
+<pre class="code">function _order(address trader, int256 delta) internal {
+    _sync();                           <span class="c">// 1. settle what RISEx filled, read from the book's position</span>
+    _cancelResting();                  <span class="c">//    and take the old order off RISEx</span>
+    _gate(mid, mark, maxMidMarkBps);   <span class="c">// 2. size caps, and the mid inside a gate of the mark</span>
+    uint256 left = _matchQueue(trader, delta, mid);   <span class="c">// 3. match waiting traders at the mid</span>
+    if (left != 0) _enqueue(trader, left);            <span class="c">// 4. the remainder joins the queue</span>
+    _requireMargin(trader, mark);
+    _placeResting();                   <span class="c">// 5. one post-only order on RISEx, sized to the queue</span>
+}</pre>
+<p class="note"><code>_cancelResting</code> and <code>_placeResting</code> call RISEx directly; they are the two lines that need the order role.</p>
+
+<h2>Venue facts the build turned up</h2>
+<ul>
+  <li>RISEx deletes filled and cancelled orders and reuses their IDs, so the book reads fills from its position, never from a remembered order ID.</li>
+  <li>A post-only order that would cross reverts, so a resting buy rounds the mid down and a sell rounds it up.</li>
+  <li>Orders expire on fixed 5-minute clock boundaries, and an expired order stays in the open-order list until something touches it.</li>
+</ul>
+
+<h2>What ran live on RISE testnet</h2>
+<table class="plain keep">
+  <thead><tr><th>Step</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Open a 0.1 ETH long</td><td>Queued; a resting buy placed at 1,934.42, the mid of 1,933.49 and 1,934.38</td></tr>
+    <tr><td>RISEx fills the resting buy</td><td>Within seconds, by another RISEx trader</td></tr>
+    <tr><td>Settle the fill</td><td>Position 0.1 ETH at 1,934.42; pool up 0.0097 USDC, the maker rebate</td></tr>
+    <tr><td>Close at market</td><td>RISEx position back to zero; the trader paid 0.134 USDC (about 7 bp); pool value unchanged</td></tr>
+    <tr><td>Two traders match in the queue</td><td>A 0.1 ETH market close was taken by a waiting buyer at the mid of 1,932.11, with no RISEx trade</td></tr>
+    <tr><td>A second market behind the first</td><td>A BTC book deployed, registered with the ETH book's router and traded on 14 November</td></tr>
+  </tbody>
+</table>
+
+<table class="plain keep">
+  <thead><tr><th>On a fork of RISE (ETH, mark about 2,064)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>2% price move with one hedged 1 ETH long</td><td>Pool value changed by under 0.05 USDC</td></tr>
+    <tr><td>Market close of 0.5 ETH</td><td>The trader paid under 20 bp; the pool lost nothing</td></tr>
+    <tr><td>Liquidation after a 4% drop, 120 USDC margin</td><td>Sold on RISEx in the same transaction; the pool lost nothing</td></tr>
+    <tr><td>Liquidation after a 7% drop, 120 USDC margin</td><td>The pool absorbed the shortfall, under 40 USDC</td></tr>
+  </tbody>
+</table>
+<p class="note">Testnet contracts (RISE testnet, chain 11155931): ETH book proxy <code>0xb070893EC0a416AC72ddD77D226f9513B327B1f1</code>, BTC book proxy <code>0x4CebD759CE967967Ca922eA63B6FB96d8fa4B8fb</code>.</p>
+
+<h2>Known weaknesses</h2>
+<table class="plain keep">
+  <thead><tr><th style="width:58%">Weakness</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>A resting order fills at its own price however far the market has moved. In a test, a 7% drop before the keeper re-priced left a 20× trader bankrupt on arrival; at 100× a 1% move would.</td><td><span class="tag warn">Mitigated</span> The keeper re-prices on every meaningful move; the order carries an expiry on RISEx, so a stopped keeper leaves it exposed for at most 10 minutes</td></tr>
+    <tr><td>Funding on the RISEx position is not passed to traders</td><td><span class="tag warn">Open</span></td></tr>
+    <tr><td>A trader past bankruptcy counts at negative equity until liquidated, so an LP can withdraw ahead of the loss</td><td><span class="tag warn">Open</span></td></tr>
+    <tr><td>Matches settle at a mid anyone can quote into</td><td><span class="tag">Bounded</span> Mid-to-mark gate (1% on testnet ETH) and size caps</td></tr>
+    <tr><td>RISEx's minimum order is 0.1 ETH, so a smaller remainder waits with no resting order</td><td><span class="tag">By design</span></td></tr>
+  </tbody>
+</table>
+
+
+<footer class="sources">
+Sources: Papertrade docs (<a href="https://docs.papertrade.xyz/">docs.papertrade.xyz</a>: FAQ, Solvency &amp; queue, Liquidations, Asymmetric impact); RIP&#8209;4 in this repository; testnet and fork measurements, 13–17 November 2026. Text released under CC0 1.0.
+</footer>
+</body>
+</html>

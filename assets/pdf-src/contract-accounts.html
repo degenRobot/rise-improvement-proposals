@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What contract accounts unlock on RISEx</title>
+<link rel="stylesheet" href="print.css">
+</head>
+<body>
+
+<header class="cover">
+  <div class="kicker">RISE Improvement Proposals · Examples</div>
+  <h1>What contract accounts unlock on RISEx</h1>
+  <p class="sub">Credit accounts, portfolio margin liquidation, order hooks, smart wallets and conditional orders, and the two changes they wait on</p>
+  <div class="meta"><a href="https://x.com/degenRobot">@degenRobot</a> · <a href="https://mattsmart.xyz">mattsmart.xyz</a> · November 2026 · Experiments on RISE testnet, not live products</div>
+</header>
+
+<p class="lead">A smart-contract account can already hold collateral on RISEx and validate signatures on chain. What it cannot do is trade under its own rules through RISEx's hosted API, or trade in the same transaction as its own logic without a role that has no published way to apply. RIP&#8209;3 and RIP&#8209;4 remove those two walls. This document shows what is on the other side.</p>
+
+<h2>Three ways an order reaches RISEx</h2>
+<figure>
+<svg viewBox="0 0 700 272" role="img" aria-label="The API refuses contract signatures today; RIP-3 relays them; RIP-4 lets a contract trade on chain directly" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker>
+  </defs>
+  <!-- row labels -->
+  <text x="16" y="56" font-size="13" font-weight="600" fill="#17191c">Today</text>
+  <text x="16" y="72" font-size="10.5" fill="#5a6068">hosted API</text>
+  <text x="16" y="136" font-size="13" font-weight="600" fill="#0f6e66">RIP-3</text>
+  <text x="16" y="152" font-size="10.5" fill="#5a6068">API relays ERC-1271</text>
+  <text x="16" y="216" font-size="13" font-weight="600" fill="#0f6e66">RIP-4</text>
+  <text x="16" y="232" font-size="10.5" fill="#5a6068">order role, on chain</text>
+  <!-- row 1 -->
+  <rect x="176" y="40" width="136" height="40" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="244" y="64" text-anchor="middle" font-size="12.5" fill="#17191c">Contract account</text>
+  <path d="M312 60 H350" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#b1)"/>
+  <rect x="352" y="40" width="136" height="40" rx="8" fill="#fff" stroke="#a3242a" stroke-width="2"/>
+  <text x="420" y="64" text-anchor="middle" font-size="12.5" fill="#17191c">Hosted API</text>
+  <text x="420" y="96" text-anchor="middle" font-size="10.5" fill="#a3242a">refused: 64 or 65 bytes only</text>
+  <rect x="528" y="40" width="150" height="40" rx="8" fill="none" stroke="#d9dde2" stroke-dasharray="4 3"/>
+  <text x="603" y="64" text-anchor="middle" font-size="12.5" fill="#9aa0a6">RISEx router</text>
+  <!-- row 2 -->
+  <rect x="176" y="120" width="136" height="40" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="244" y="144" text-anchor="middle" font-size="12.5" fill="#17191c">Contract account</text>
+  <path d="M312 140 H350" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#b1)"/>
+  <rect x="352" y="120" width="136" height="40" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="420" y="144" text-anchor="middle" font-size="12.5" fill="#17191c">Hosted API</text>
+  <text x="420" y="176" text-anchor="middle" font-size="10.5" fill="#5a6068">pre-checks isValidSignature</text>
+  <path d="M488 140 H526" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#b1)"/>
+  <rect x="528" y="120" width="150" height="40" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="603" y="144" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">RISEx router</text>
+  <text x="603" y="176" text-anchor="middle" font-size="10.5" fill="#5a6068">checks again; order placed</text>
+  <!-- row 3 -->
+  <rect x="176" y="200" width="136" height="40" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="244" y="224" text-anchor="middle" font-size="12.5" fill="#17191c">Contract, role 14</text>
+  <path d="M312 220 H526" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#b1)"/>
+  <text x="420" y="212" text-anchor="middle" font-size="10.5" fill="#5a6068">order and state change in one transaction</text>
+  <rect x="528" y="200" width="150" height="40" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="603" y="224" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">RISEx router</text>
+  <text x="603" y="256" text-anchor="middle" font-size="10.5" fill="#5a6068">or PerpsManager directly</text>
+</svg>
+<figcaption>Measured on 13 November 2026: the hosted API refused a 388-byte ERC-1271 signature that the account itself accepted. RISEx's contracts already validate contract signatures; only the API stands in the way (RIP-3). Trading in the same transaction as your own logic needs AccessManager role 14 (RIP-4).</figcaption>
+</figure>
+
+<table class="keep">
+  <thead><tr><th>Example</th><th>Needs</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Credit accounts</td><td>RIP&#8209;3, or RIP&#8209;4 for the gateway variant</td><td>Gateway variant live on testnet, including a full liquidation</td></tr>
+    <tr><td>Portfolio margin liquidation</td><td>RIP&#8209;4</td><td>Run on a fork of RISE mainnet</td></tr>
+    <tr><td>Hooks</td><td>RIP&#8209;4; RIP&#8209;3 for the pre-trade half</td><td>Live on testnet</td></tr>
+    <tr><td>Synthetic book (separate PDF)</td><td>RIP&#8209;4</td><td>Live on testnet</td></tr>
+    <tr><td>Smart wallets and conditional orders</td><td>RIP&#8209;3</td><td>Proposed uses</td></tr>
+  </tbody>
+</table>
+
+<h2 class="pagebreak">Credit accounts</h2>
+<p><span class="tag">Needs RIP&#8209;3</span> This experiment lends USDC.e to perps traders. Lenders deposit into one ERC-4626 pool. A borrower opens a credit account (a contract RISEx account owned by a credit manager contract), adds USDC.e or pledges WETH or WBTC, and draws USDC.e that lands as the account's RISEx margin.</p>
+
+<h3>An order that breaks the loan is an invalid signature</h3>
+<figure>
+<svg viewBox="0 0 700 212" role="img" aria-label="The credit account checks each order inside isValidSignature; a failing order is an invalid signature" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs><marker id="c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker></defs>
+  <rect x="10" y="90" width="130" height="46" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="75" y="110" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">Order permit</text>
+  <text x="75" y="126" text-anchor="middle" font-size="10.5" fill="#5a6068">order inside the signature</text>
+  <rect x="170" y="10" width="320" height="194" rx="10" fill="#f3f5f7" stroke="#17191c" stroke-width="1.25"/>
+  <text x="182" y="31" font-size="12" font-weight="600" fill="#17191c">Credit account · isValidSignature</text>
+  <rect x="182" y="44" width="296" height="30" rx="6" fill="#fff" stroke="#5a6068"/>
+  <text x="194" y="64" font-size="11.5" fill="#17191c">1  Rebuild the digest from the order; must match</text>
+  <rect x="182" y="82" width="296" height="30" rx="6" fill="#fff" stroke="#5a6068"/>
+  <text x="194" y="102" font-size="11.5" fill="#17191c">2  Who signed: borrower, liquidator or keeper</text>
+  <rect x="182" y="120" width="296" height="30" rx="6" fill="#fff" stroke="#5a6068"/>
+  <text x="194" y="140" font-size="11.5" fill="#17191c">3  Policy: market, 10 bp IOC band, size caps</text>
+  <rect x="182" y="158" width="296" height="30" rx="6" fill="#fff" stroke="#5a6068"/>
+  <text x="194" y="178" font-size="11.5" fill="#17191c">4  Is the loan still healthy after this order?</text>
+  <path d="M140 113 H168" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#c1)"/>
+  <path d="M490 78 H518" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#c1)"/>
+  <path d="M490 150 H518" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#c1)"/>
+  <rect x="520" y="54" width="170" height="48" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="605" y="75" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">All four pass</text>
+  <text x="605" y="92" text-anchor="middle" font-size="11" fill="#17191c">RISEx places the order</text>
+  <rect x="520" y="126" width="170" height="48" rx="8" fill="#fff" stroke="#a3242a" stroke-width="2"/>
+  <text x="605" y="147" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">Any one fails</text>
+  <text x="605" y="164" text-anchor="middle" font-size="11" fill="#17191c">refused like a forged permit</text>
+</svg>
+</figure>
+<pre class="code">function isValidSignature(bytes32 hash, bytes calldata signature) public view returns (bytes4) {
+    if (bytes4(signature[:4]) != ORDER_ENVELOPE_MAGIC) return 0xffffffff;
+    OrderEnvelope memory e = abi.decode(signature[4:], (OrderEnvelope));
+
+    <span class="c">// 1. Rebuild RISEx's digest from the order in the envelope. It must equal `hash`,</span>
+    <span class="c">//    so the envelope cannot approve any other message.</span>
+    if (_risexDigest(_witness(e)) != hash) return 0xffffffff;
+
+    <span class="c">// 2. Who signed: the borrower, a liquidator or a keeper.</span>
+    SignerRole role = creditManager.signerRole(address(this), e.signer);
+    if (role == SignerRole.None) return 0xffffffff;
+    if (!SignatureCheckerLib.isValidSignatureNow(e.signer, hash, e.signature)) return 0xffffffff;
+
+    <span class="c">// 3. Order policy, then the loan's health after the order. Reverts if either refuses.</span>
+    orderPolicy.checkPlaceOrder(address(this), role, uint88(e.data));
+    return 0x1626ba7e;
+}</pre>
+<p class="note">The account's check, simplified to the place-order case. <code>isValidSignature</code> receives only a hash, and a contract cannot read an order out of a hash, so the signature carries the order itself. That is why it is 388 bytes long.</p>
+<p>Health is the line <code>(max(equity, 0) × equityRatio + Σ pledge × weight) / debt</code>. Below 1, anyone may start a liquidation: the liquidator closes positions reduce-only, then the account withdraws the cash and pledge, repays the pool and pays a fee from the pledge.</p>
+
+<h3>Why the API matters</h3>
+<table class="keep">
+  <thead><tr><th>Variant</th><th>Order path</th><th>Pre-trade check</th><th>Needs from RISE</th><th>One bad order can cost the lender</th></tr></thead>
+  <tbody>
+    <tr><td>Gateway</td><td>A gateway contract calls the router</td><td>Every order</td><td>Order role (RIP&#8209;4)</td><td>About 5 USDC</td></tr>
+    <tr><td>Session key</td><td>Borrower's Perps key through the API</td><td>None; a keeper reacts after</td><td>Nothing</td><td>Up to the whole debt</td></tr>
+    <tr><td>Contract signature</td><td>Account's own permit through the API</td><td>Every order</td><td>RIP&#8209;3</td><td>About 5 USDC</td></tr>
+  </tbody>
+</table>
+<p>Measured on testnet: a session key can raise leverage to 50× and neither the account nor the manager can pin it; one crossed trade against an account the borrower owns can move the whole equity out in a block; a revoked key's resting orders stay on the book. The gateway variant ran a full liquidation live (health line 0.9985 → start → liquidator close → liquidate; debt repaid in full, lender share price not lower). RIP&#8209;3 gives the gateway's safety without a special role.</p>
+
+<section class="keep">
+<h2>Portfolio margin liquidation</h2>
+<p><span class="tag">Needs RIP&#8209;4</span> A portfolio-margin account borrows against collateral held elsewhere and trades the loan on RISEx. RISE's own draft RIP&#8209;2 describes one on Morpho, and says its liquidation closes perps and repays the loan "in a single atomic transaction" while each protocol keeps its own risk engine. Deposits and withdrawals on RISEx are open to any contract. Placing an order is not: on mainnet on 17 November 2026, <code>PerpsManager.placeOrder</code> was gated by role 14. Without the role the account closes through the hosted API in one transaction and repays in another, with the loan exposed in between.</p>
+
+<figure>
+<svg viewBox="0 0 700 216" role="img" aria-label="With the order role, one call closes the perp on RISEx, withdraws and repays Morpho" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs><marker id="p1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker></defs>
+  <rect x="10" y="88" width="104" height="46" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="62" y="108" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">Keeper</text>
+  <text x="62" y="124" text-anchor="middle" font-size="10.5" fill="#5a6068">one call</text>
+  <rect x="144" y="10" width="290" height="196" rx="10" fill="#f3f5f7" stroke="#17191c" stroke-width="1.25"/>
+  <text x="158" y="31" font-size="12" font-weight="600" fill="#17191c">Margin account, role 14 · one transaction</text>
+  <rect x="158" y="46" width="262" height="40" rx="6" fill="#fff" stroke="#5a6068"/>
+  <text x="170" y="71" font-size="12" fill="#17191c">1  Sell 0.2 ETH, reduce-only</text>
+  <rect x="158" y="98" width="262" height="40" rx="6" fill="#fff" stroke="#5a6068"/>
+  <text x="170" y="123" font-size="12" fill="#17191c">2  Withdraw 499.69 USDC.e</text>
+  <rect x="158" y="150" width="262" height="40" rx="6" fill="#fff" stroke="#5a6068"/>
+  <text x="170" y="175" font-size="12" fill="#17191c">3  Repay 499.69 USDC.e</text>
+  <path d="M114 111 H142" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#p1)"/>
+  <path d="M420 66 H476" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#p1)"/>
+  <path d="M420 118 H448 V92 H476" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#p1)"/>
+  <path d="M420 170 H476" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#p1)"/>
+  <rect x="478" y="38" width="212" height="72" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="584" y="60" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">RISEx</text>
+  <text x="584" y="78" text-anchor="middle" font-size="10.8" fill="#17191c">an ordinary order and withdrawal;</text>
+  <text x="584" y="93" text-anchor="middle" font-size="10.8" fill="#17191c">margin check and liquidator unchanged</text>
+  <rect x="478" y="140" width="212" height="60" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="584" y="162" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">Morpho market</text>
+  <text x="584" y="180" text-anchor="middle" font-size="10.8" fill="#17191c">holds the 1 WETH; debt 500.00 → 0.30</text>
+</svg>
+<figcaption>Fork of RISE mainnet, block 26,080,000, 17 November 2026. The account pledged 1 WETH, borrowed 500 USDC.e, opened a 0.2 ETH long, and RISEx's mark was moved down 1.5%.</figcaption>
+</figure>
+</section>
+
+<table class="keep plain">
+  <thead><tr><th style="width:36%">Step</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Before the call</td><td>RISEx equity 493.11 USD against 11.78 of maintenance margin. RISEx's own liquidator, called on the account, reverted: healthy by RISEx's rules</td></tr>
+    <tr><td>One call, account holding role 14</td><td>Position closed, 499.69 USDC.e withdrawn and repaid; the remaining 0.30 of debt still covered by the WETH</td></tr>
+    <tr><td>The same call without the role</td><td>Reverted; the position stayed open</td></tr>
+  </tbody>
+</table>
+<pre class="code">function closeWithdrawRepay(MarketParams calldata loan, PlaceOrderParams calldata close)
+    external onlyKeeper
+{
+    require(close.reduceOnly);
+    perpsManager.placeOrder(close);   <span class="c">// trades for msg.sender, so this account needs role 14</span>
+    require(perpsManager.getPosition(close.marketId, address(this)).size == 0);
+
+    uint256 amount = collateralManager.getWithdrawableUSDC(address(this)) / 1e12;
+    collateralManager.withdraw(address(this), USDC, amount);
+    morpho.repay(loan, amount, 0, address(this), "");
+}</pre>
+<p class="note">The test account's one extra function, simplified.</p>
+<p>RISEx's risk engine is untouched for three reasons. The close is an ordinary reduce-only order from the account itself. RISEx's margin check and liquidator read the same account as before, and stay as the backstop if the product is late. And RISEx never prices the collateral: whether the WETH is worth enough is the lender's question on Morpho. One limit matters: the product's trigger has to sit ahead of RISEx's maintenance line, or RISEx liquidates first and the loan is left to its collateral. The credit account's liquidation above is the same pattern, already live on testnet.</p>
+
+<h2>Where a loss lands</h2>
+<p>All three designs give a trader more than RISEx alone would: more leverage, or a loan. In each, someone outside RISEx underwrites the extra, and RISEx's own margin check and liquidator run unchanged behind them.</p>
+<table class="keep">
+  <thead><tr><th style="width:19%">Design</th><th style="width:22%">First loss</th><th style="width:25%">Second loss</th><th>What RISEx's engine sees</th></tr></thead>
+  <tbody>
+    <tr><td>Synthetic book</td><td>The trader's margin in the book</td><td>The book's pool (its LPs)</td><td>One account holding the pool. Traders at 94× showed as 3.95×; a 3% gap left equity 17× maintenance</td></tr>
+    <tr><td>Credit account</td><td>The borrower's equity and pledge</td><td>The experiment's lending pool</td><td>An ordinary account, margined and liquidated by RISEx's rules. The credit account's own health line and liquidation sit on top</td></tr>
+    <tr><td>Portfolio margin</td><td>The perp margin, which is the loan</td><td>The collateral, then the money market's lenders</td><td>An ordinary account. RISEx never prices the collateral</td></tr>
+  </tbody>
+</table>
+<p class="note">Synthetic book figures from a fork of RISE testnet on 17 November 2026; see the synthetic book PDF. If a third party's pool is exhausted, its RISEx account is liquidated by RISEx like any other.</p>
+
+<section class="keep">
+<h2>Hooks</h2>
+<p><span class="tag">Needs RIP&#8209;4</span> A hook gateway lets any RISEx account attach its own rules to its orders. For every order that can add risk, it runs in one transaction:</p>
+<figure>
+<svg viewBox="0 0 700 176" role="img" aria-label="The hook gateway runs before-hooks, places the order and runs after-hooks in one transaction; closes skip the hooks" font-family="-apple-system, Helvetica, Arial, sans-serif">
+  <defs><marker id="h1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#5a6068"/></marker></defs>
+  <rect x="10" y="56" width="104" height="48" rx="8" fill="#fff" stroke="#17191c" stroke-width="1.25"/>
+  <text x="62" y="77" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">Caller</text>
+  <text x="62" y="93" text-anchor="middle" font-size="10.5" fill="#5a6068">owner or operator</text>
+  <rect x="140" y="10" width="550" height="112" rx="10" fill="#f3f5f7" stroke="#17191c" stroke-width="1.25"/>
+  <text x="154" y="31" font-size="12" font-weight="600" fill="#17191c">HookGateway, role 14 · one transaction</text>
+  <rect x="154" y="50" width="160" height="60" rx="8" fill="#fff" stroke="#5a6068" stroke-width="1"/>
+  <text x="234" y="76" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">beforeOrder hooks</text>
+  <text x="234" y="94" text-anchor="middle" font-size="10.5" fill="#5a6068">each may revert</text>
+  <rect x="334" y="50" width="160" height="60" rx="8" fill="#e3f1ef" stroke="#0f6e66" stroke-width="2"/>
+  <text x="414" y="70" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">Router places the order</text>
+  <text x="414" y="86" text-anchor="middle" font-size="10.5" fill="#17191c">signature valid only for</text>
+  <text x="414" y="100" text-anchor="middle" font-size="10.5" fill="#17191c">the gateway's digest</text>
+  <rect x="514" y="50" width="160" height="60" rx="8" fill="#fff" stroke="#5a6068" stroke-width="1"/>
+  <text x="594" y="76" text-anchor="middle" font-size="12.5" font-weight="600" fill="#17191c">afterOrder hooks</text>
+  <text x="594" y="94" text-anchor="middle" font-size="10.5" fill="#5a6068">see the fill; may revert it</text>
+  <path d="M114 80 H152" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#h1)"/>
+  <path d="M314 80 H332" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#h1)"/>
+  <path d="M494 80 H512" fill="none" stroke="#5a6068" stroke-width="1.25" marker-end="url(#h1)"/>
+  <path d="M62 104 V150 H414 V112" fill="none" stroke="#0f6e66" stroke-width="1.25" stroke-dasharray="4 3" marker-end="url(#h1)"/>
+  <text x="74" y="166" font-size="11" fill="#0f6e66">Reduce-only orders and cancels skip the hooks, so no hook can stop a close.</text>
+</svg>
+</figure>
+</section>
+<p>The account has no key of its own, so the only way to trade it is through its hooks. A hook is two functions; the risk-cap hook's pre-trade check is a few lines:</p>
+<pre class="code">interface IOrderHook {
+    function beforeOrder(OrderContext calldata ctx, bytes calldata hookData) external;
+    function afterOrder(OrderContext calldata ctx, uint56 orderId, int256 sizeBefore,
+                        int256 sizeAfter, bytes calldata hookData) external;
+}
+
+<span class="c">// RiskCapHook: refuse an order above the account's notional cap</span>
+function beforeOrder(OrderContext calldata ctx, bytes calldata) external view onlyGateway {
+    uint256 cap = caps[ctx.account].maxOrderNotional;
+    uint256 n = orderNotional(ctx);
+    if (cap != 0 &amp;&amp; n &gt; cap) revert OrderTooLarge(n, cap);
+}</pre>
+<table class="keep">
+  <thead><tr><th>Hook</th><th>What it enforces</th><th>Who wants it</th></tr></thead>
+  <tbody>
+    <tr><td>Risk cap</td><td>Order notional before; market leverage after the fill</td><td>Anyone who wants a hard limit on their own account</td></tr>
+    <tr><td>Daily loss</td><td>No risk-adding orders past a daily loss limit</td><td>Prop firms and funded-account programmes</td></tr>
+    <tr><td>Delegate cap</td><td>An operator's expiry, markets, per-order and cumulative caps</td><td>Owners who let a manager, a friend or a bot trade</td></tr>
+  </tbody>
+</table>
+<p>Live on testnet: an allowed order filled, an oversized order was refused on chain (<code>OrderTooLarge</code>), and a reduce-only close skipped the hooks. With RIP&#8209;3, before-hooks could run inside an account's own <code>isValidSignature</code> through the API; after-hooks still need the gateway, because they act on the fill. One known limit: a resting order that fills later never comes back through the after-hooks.</p>
+
+<section class="keep">
+<h2>Smart wallets</h2>
+<p><span class="tag">Needs RIP&#8209;3</span> A passkey signs with the P-256 curve; the hosted API only recovers secp256k1 keys. So every passkey wallet must mint a second key just for RISEx, and that key carries none of the wallet's limits.</p>
+<table class="keep">
+  <thead><tr><th>Wallet</th><th>Signs with</th><th>With RIP&#8209;3</th></tr></thead>
+  <tbody>
+    <tr><td>RISE Wallet</td><td>Passkeys through EIP-7702, scoped session keys (built on Porto)</td><td>Trade RISEx with the passkey or a scoped wallet key, inside the limits the wallet already enforces</td></tr>
+    <tr><td>Porto</td><td>WebAuthn P-256 passkeys, permissioned app keys, via ERC-1271 (archived August 2026)</td><td>Porto shipped this signing through ERC-1271. An account built this way could sign a RISEx permit as it stands</td></tr>
+    <tr><td>Coinbase Smart Wallet</td><td>Passkeys</td><td>A user trades with the passkey they already have, with no second key to mint, store or lose</td></tr>
+    <tr><td>Safe</td><td>M-of-N owners</td><td>Treasuries and funds trade with their multisig policy intact, including thresholds that rise with order size</td></tr>
+  </tbody>
+</table>
+</section>
+
+<h2>Accounts with rules</h2>
+<table class="keep">
+  <thead><tr><th>Feature</th><th>What the account checks before it signs</th></tr></thead>
+  <tbody>
+    <tr><td>Agent wallets</td><td>An AI or bot agent may trade only inside the size, leverage, market and expiry limits its owner set</td></tr>
+    <tr><td>Copy trading, managed vaults</td><td>The manager's order fits the vault's published mandate</td></tr>
+    <tr><td>Cross-protocol margin</td><td>The account reads its own Morpho or Aave loan and refuses an order that would leave the combined position unsafe. Liquidating it in one transaction needs RIP&#8209;4</td></tr>
+    <tr><td>Institutional controls</td><td>Allow-listed signers, markets and sizes; a second approver for large orders</td></tr>
+    <tr><td>Recovery</td><td>Guardians rotate the signer set and trading permissions follow, without RISEx having to know</td></tr>
+  </tbody>
+</table>
+
+<section class="keep">
+<h2>Orders anyone can relay</h2>
+<p>An account can approve an order by its content rather than by who sent it. The signature bytes carry the order; the account rebuilds the digest, checks the match, and tests the order against conditions its owner stored earlier. No owner key signs at submit time, so a keeper, a solver or the user's browser can submit it through the hosted API.</p>
+<table class="keep">
+  <thead><tr><th>Feature</th><th>The account accepts an order when</th></tr></thead>
+  <tbody>
+    <tr><td>Stop&#8209;loss, take&#8209;profit</td><td>It is reduce-only and the oracle mark has crossed the owner's trigger</td></tr>
+    <tr><td>TWAP and DCA</td><td>It is the next slice of an approved schedule: size, interval, price limit</td></tr>
+    <tr><td>Rebalancing</td><td>It moves exposure back toward the owner's target</td></tr>
+    <tr><td>Self-deleveraging</td><td>It is reduce-only and the account's health is below a threshold, so any keeper can protect it before RISEx's liquidator would</td></tr>
+  </tbody>
+</table>
+</section>
+<p>None of these needs a new order type from RISEx. The venue sees an ordinary order with a valid signature; the condition lives in the account. RISEx's liquidator still works on every account, because liquidation never asks for the account's signature.</p>
+
+<footer class="sources">
+Sources: RIP&#8209;3 and RIP&#8209;4 in this repository; RISE's RIP&#8209;1 and RIP&#8209;2 (docs.risechain.com); RISE integration reference (developer.rise.trade); Porto repository (github.com/ithacaxyz/porto); "Putting DeFi on steroids &amp; the death of tardfi" (x.com/degenRobot, 26 November 2025) for the RISE Wallet Stack; testnet and fork measurements, 13–17 November 2026. Text released under CC0 1.0.
+</footer>
+</body>
+</html>
