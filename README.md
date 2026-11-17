@@ -21,7 +21,7 @@ RIP-3 lets any contract account set its own rules for which orders it signs, wit
 
 The proposals ask RISE for an API change and a grant process. This is what comes back.
 
-- **Accounts that cannot trade today.** Of 2,715 recently active RISEx accounts we sampled, none was a contract. Multisig treasuries, passkey wallets and lending protocols have no path through the API until RIP-3.
+- **Accounts that cannot trade as themselves today.** Of 2,090 recently active RISEx accounts sampled on 17 November 2026, 2,085 were plain EOAs, five were EIP-7702 smart wallets and none was a standalone contract. The smart wallets do trade, but only through a separate session key that carries none of the wallet's limits. Passkey wallets, multisig treasuries and lending protocols get to trade under their own rules with RIP-3.
 - **Order flow from products RISE does not have to build.** The synthetic book rests a post-only order at the RISEx mid and sends its closes and liquidations to RISEx's book. A margin product closes its positions there. All of it arrives as ordinary orders under a builder code.
 - **Leverage and collateral risk that stays outside RISEx's risk engine.** On a fork, traders ran at 94× inside the synthetic book while RISEx margined the book's one account at 4×. A 3% gap bankrupted every trader and cost the book's pool 8%; the account's equity was still 17 times RISEx's maintenance margin. In a second fork run, a portfolio-margin account was liquidated by its own keeper in one transaction while RISEx's liquidator still counted it healthy. RISEx's margin and liquidation code runs unchanged in both, as the backstop.
 

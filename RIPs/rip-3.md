@@ -26,9 +26,11 @@ Today a contract account can hold collateral on RISEx and validate signatures on
 
 RISE's [integration reference](https://developer.rise.trade/reference/integration.md) says the same: an account that cannot produce an ECDSA signature must register a session key. RISEx checks a session key itself, without asking the account, so every rule the account wants to enforce is skipped on the API path. That includes the `_beforeOrder` hooks in [RIP-1](https://docs.risechain.com/docs/risex/rips/rip-1), which run only when an order passes through the sub-account.
 
-The gap shows in who trades. We sampled 2,715 accounts that registered a signer in a recent 7-day window or traded through OperatorHub in a recent day. Of those, 2,712 were plain EOAs, 3 were EIP-7702-delegated and none was a contract. Contract accounts are absent because the API has no path for them. Multisig treasuries, passkey wallets and lending protocols are the accounts, and the order flow, that would arrive with one.
+The gap shows in who trades, and how. On 17 November 2026 we sampled the 2,090 mainnet accounts that had registered a signer in the previous 7 days or spent an OperatorHub allowance in the previous day. 2,085 were plain EOAs. Five were EIP-7702 smart wallets, all delegated to the same Porto `IthacaAccount`, and none was a standalone contract. Five is a floor: the sample only finds a smart wallet in the week it registers a new key.
 
-It also affects RISE's own wallet. The RISE Wallet Stack is [built on Porto](https://x.com/degenRobot/status/1993652483152068697): passkey login through EIP-7702 and session keys with scoped permissions. A passkey signs with P-256 and cannot produce the secp256k1 signature the API demands. So today a RISE Wallet user who wants to trade on RISEx must first mint an unrestricted Perps key, and the wallet's own permission model stops at the API's door.
+The smart wallets do trade, but not as themselves. We traced one. It registered a 7-day session key through a wallet intent. The key is a plain EOA holding `Permission.All`, and every order after that carried the key's ECDSA signature. The wallet's own checks never saw an order. Multisig treasuries and lending protocols are in the same position: a session key is the only way in, and it leaves their rules behind.
+
+It also affects RISE's own wallet. The RISE Wallet Stack is [built on Porto](https://x.com/degenRobot/status/1993652483152068697): passkey login through EIP-7702 and session keys with scoped permissions. A passkey signs with P-256 and cannot produce the secp256k1 signature the API demands. So today a RISE Wallet user who wants to trade on RISEx must first register a separate, unrestricted session key, and the wallet's own permission model stops at the API's door.
 
 ## Specification
 
@@ -59,7 +61,7 @@ An account decides, in code, which orders count as its own. An order that breaks
 | --- | --- | --- |
 | **Credit accounts** ([example](../examples/credit-accounts.md)) | The order would not leave the loan under-collateralised: market and price-band policy, then line health after the order | Forced onto an on-chain gateway that needs the order role, or onto a session key with no pre-trade check |
 | **Passkey smart wallets** ([examples](../examples/smart-wallets-and-more.md)): RISE Wallet, [Porto](https://github.com/ithacaxyz/porto), Coinbase Smart Wallet | A WebAuthn P-256 signature from the user's device, or a scoped app key inside its spend and expiry limits | P-256 keys cannot make a secp256k1 signature, so the wallet must mint a separate, unrestricted key |
-| **Multisig and treasury accounts** (Safe) | M-of-N owner signatures | Cannot trade through the API at all |
+| **Multisig and treasury accounts** (Safe) | M-of-N owner signatures | Can trade only through a session key that one person holds, which bypasses the M-of-N policy |
 | **RIP-1 sub-accounts** | The builder's `_beforeOrder` logic | Bypassed whenever the account trades through a session key |
 | **Delegated trading** ([example](../examples/hooks.md)) | An operator stays inside expiry, market, per-order and cumulative caps | Needs a gateway with the order role |
 | **Prop and funded accounts** ([example](../examples/hooks.md)) | A daily loss limit, checked before any order that adds risk | Enforced only after the fact |

@@ -67,7 +67,7 @@
       <dt>What changes for RISE</dt><dd>The API only. The router already decodes these permits.</dd>
       <dt>What it opens</dt><dd>Passkey wallets, RISE Wallet included. Safe treasuries. Agent wallets with limits. Lending where an order that breaks the loan is an invalid signature. Stop-losses anyone can relay.</dd>
       <dt>Main risk, and its bound</dt><dd>The API runs code that accounts wrote. A gas cap on the check, per-address quotas, and a throttle on accounts whose permits fail on chain.</dd>
-      <dt>Evidence</dt><dd>On 13 November 2026 the API refused a 388-byte signature that the account itself accepted. Of 2,715 recently active accounts sampled, none is a contract.</dd>
+      <dt>Evidence</dt><dd>The API refused a 388-byte signature that the account itself accepted (13 November 2026). The smart wallets on mainnet all trade through session keys.</dd>
     </dl>
   </div>
   <div>
@@ -84,7 +84,7 @@
 
 <h2>What RISE gets</h2>
 <div class="callouts">
-  <div class="callout"><b>Accounts that cannot trade today</b>Multisig treasuries, passkey wallets and lending protocols have no path through the API until RIP&#8209;3.</div>
+  <div class="callout"><b>Wallets trading as themselves</b>Passkey wallets trade today only through a session key with none of their limits. RIP&#8209;3 lets them, and multisigs, trade under their own rules.</div>
   <div class="callout"><b>Flow it does not have to build</b>The synthetic book rests a post-only order at the mid and sends closes and liquidations to RISEx's book, under a builder code. RISEx gets the book's net flow, not its gross.</div>
   <div class="callout"><b>Risk that stays outside its engine</b>On a fork, traders at 94× showed to RISEx as one account at 3.95×. A 3% gap cost the book's pool 8% and left RISEx's liquidator nothing to do.</div>
 </div>
